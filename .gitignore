@@ -1,0 +1,4 @@
+preprocess/
+__pycache__/
+trec07p/
+trec07p.tgz
