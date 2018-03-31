@@ -4,17 +4,23 @@ from multiprocessing import Pool
 from os import mkdir, path
 import nltk
 import random
+import re
 try:
     from random_shit import *
 except ImportError:
     pass
 
+def get_id(filename):
+    return filename.split('.')[-1]
+
+def get_int_id(filename):
+    return int(get_id(filename))
 
 """
 list of filenames
 """
-filenames = glob.glob(path.join('trec07p', 'data', 'inmail.*'))#[:1000]
-filenameNos = map(lambda x: x.split('.')[-1], filenames)
+filenames = sorted(glob.glob(path.join('trec07p', 'data', 'inmail.*')), key=get_int_id)
+filenameNos = map(get_id, filenames)
 
 """
 list of strings that are either 'ham'/'spam' based on whether the email is ham/spam.
@@ -40,7 +46,7 @@ def read_file(filename):
 given a tuple (text, filename) save it in encoding latin-1
 """
 def save_file(data):
-    with open(data[1], 'w', encoding='latin-1') as fileObj:
+    with open(data[1], 'w') as fileObj:
         emailStr = fileObj.write(data[0])
 
 """
@@ -117,3 +123,70 @@ def show_group_stats(groups):
     print()
 
 
+
+
+
+patterns_to_remove = [
+        re.compile('<style>.*</style>', re.S),
+        re.compile('<.*?>', re.S)
+]
+
+tokenPositives = [
+    re.compile('^[A-Za-z0-9\-\.]{1,30}$')
+]
+
+tokenNegatives = [
+    re.compile('^[\-\.]+$')
+]
+
+# from https://www.safaribooksonline.com/library/view/python-cookbook-2nd/0596007973/ch01s19.html
+def multiple_replace(text, adict):
+    rx = re.compile('|'.join(map(re.escape, adict)))
+    def one_xlat(match):
+        return adict[match.group(0)]
+    return rx.sub(one_xlat, text)
+
+#preprocess('trec07p/data/inmail.58044', encoding='utf_8')
+
+#groups = group(which_encoding, filenames)
+#show_group_stats(groups)
+
+makedir('preprocess')
+
+def pp_filename(filename):
+    return 'preprocess/inmail.' + filename.split('.')[-1]
+
+def preprocess(text):
+    def email_obj_is_text(emailObj):
+        return emailObj.get_content_type() == 'text/plain' or emailObj.get_content_type() == 'text/html'
+
+    emailObj = email.message_from_string(text)
+    addtl_words = []
+    # from and subject attributes added
+    addtl_words.append(emailObj['From'])
+    if emailObj['Subject']:
+        addtl_words.append(emailObj['Subject'])
+    # if multipart, walk through all parts, get all text shits
+    if emailObj.is_multipart():
+        payloads = emailObj.walk()
+        b = ' '.join((map(lambda p: p.get_payload(),
+            filter(email_obj_is_text, payloads))))
+        body = b
+    elif email_obj_is_text(emailObj):
+        body = emailObj.get_payload()
+    else:
+        body = emailObj.get_content_type().replace('/', '')
+    for r in patterns_to_remove:
+        body = re.sub(r, '', body)
+    body = body.replace('\x92', "'")
+    body = body.replace('=92', "'")
+    body = body.replace('=20', ' ')
+    body = (body + '\n' + '\n'.join(addtl_words)).lower()
+    tokens = nltk.word_tokenize(body)
+    for tp in tokenPositives:
+        tokens = filter(tp.match, tokens)
+    for tn in tokenNegatives:
+        tokens = filter(lambda tok: not tn.match(tok), tokens)
+    body = ' '.join(tokens)
+    #body = '=================OLD:\n' + text + '==================NEW:\n' + body
+    return body

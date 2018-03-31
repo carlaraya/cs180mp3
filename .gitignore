@@ -1,4 +1,6 @@
-preprocess/
+preprocess*
 __pycache__/
 trec07p/
 trec07p.tgz
+dataset-*
+dictionary.txt

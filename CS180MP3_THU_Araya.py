@@ -1,74 +1,30 @@
-import nltk
-from collections import Counter
+from collections import defaultdict, OrderedDict
 from mp3helpers import *
-import re
+from time import time
+import copy
 
-parallel = True
+parallel = False
+lenDict = 50000
 
-patterns_to_remove = [
-        re.compile('<style>.*</style>', re.S),
-        re.compile('<.*?>', re.S)
-]
+ppFilenames = list(map(pp_filename, filenameNos))#[:1000]
+dictionary = defaultdict(int)
 
-tokenPositives = [
-    re.compile('^[A-Za-z0-9\-\.]{1,30}$')
-]
+def map_task_multi(func, List):
+    vals = []
+    with Pool(processes=None) as pool:
+        for val, i in zip(pool.imap(func, List), range(1, len(List)+1)):
+            vals.append(val)
+            if i % 1000 == 0:
+                print(i, "out of", len(List))
+    return vals
 
-tokenNegatives = [
-    re.compile('^[\-\.]+$')
-]
-
-# from https://www.safaribooksonline.com/library/view/python-cookbook-2nd/0596007973/ch01s19.html
-def multiple_replace(text, adict):
-    rx = re.compile('|'.join(map(re.escape, adict)))
-    def one_xlat(match):
-        return adict[match.group(0)]
-    return rx.sub(one_xlat, text)
-
-#preprocess('trec07p/data/inmail.58044', encoding='utf_8')
-
-#groups = group(which_encoding, filenames)
-#show_group_stats(groups)
-
-makedir('preprocess')
-
-def pp_filename(filename):
-    return 'preprocess/inmail.' + filename.split('.')[-1]
-
-def preprocess(text):
-    def email_obj_is_text(emailObj):
-        return emailObj.get_content_type() == 'text/plain' or emailObj.get_content_type() == 'text/html'
-
-    emailObj = email.message_from_string(text)
-    addtl_words = []
-    # from and subject attributes added
-    addtl_words.append(emailObj['From'])
-    if emailObj['Subject']:
-        addtl_words.append(emailObj['Subject'])
-    # if multipart, walk through all parts, get all text shits
-    if emailObj.is_multipart():
-        payloads = emailObj.walk()
-        b = ' '.join((map(lambda p: p.get_payload(),
-            filter(email_obj_is_text, payloads))))
-        body = b
-    elif email_obj_is_text(emailObj):
-        body = emailObj.get_payload()
-    else:
-        body = emailObj.get_content_type().replace('/', '')
-    for r in patterns_to_remove:
-        body = re.sub(r, '', body)
-    body = body.replace('\x92', "'")
-    body = body.replace('=92', "'")
-    body = body.replace('=20', ' ')
-    body = (body + '\n' + '\n'.join(addtl_words)).lower()
-    tokens = nltk.word_tokenize(body)
-    for tp in tokenPositives:
-        tokens = filter(tp.match, tokens)
-    for tn in tokenNegatives:
-        tokens = filter(lambda tok: not tn.match(tok), tokens)
-    body = ' '.join(tokens)
-    #body = '=================OLD:\n' + text + '==================NEW:\n' + body
-    return body
+def map_task_single(func, List):
+    vals = []
+    for val, i in zip(map(func, List), range(1, len(List)+1)):
+        vals.append(val)
+        if i % 10 == 0:
+            print(i, "out of", len(List))
+    return vals
 
 def step1(filename):
     #print('Reading', filename)
@@ -79,24 +35,74 @@ def step1(filename):
     #return rawEmail
 
 def step2(text):
-    pass
+    global dictionary
+    for word in text.split(' '):
+        dictionary[word] += 1
+        #print(dictionary)
 
 def step2_file(filename):
-    pass
+    #print('Processing', filename)
+    step2(read_file(filename))
 
-print('Doing step 1...')
+def read_dictionary():
+    return(read_file('dictionary.txt').split('\n'))
+
+def step3_file(filename):
+    fileWords = read_file(filename).split(' ')
+    return step3(fileWords)
+
+def step3(fileWords):
+    cp1 = time()
+    fileDict = OrderedDict.fromkeys(dictionaryList, 0)
+    cp2 = time()
+    for word in fileWords:
+        if word in fileDict:
+            fileDict[word] += 1
+    cp3 = time()
+    #trainCsv.write(','.join(map(str, fileDict.values())) + '\n')
+    print(cp2-cp1, cp3-cp2)
+    return ','.join(map(str, fileDict.values()))
+
+
 total=len(filenames)
-print(str(total), 'files')
+print(str(total), 'filez')
+
+"""
+print('Doing step 1...')
 
 if parallel:
-    with Pool(processes=None) as pool:
-        for _, i in zip(pool.imap_unordered(step1, filenames), range(1, total+1)):
-            #print('%d out of %d, %.2f%%' % (i, total, i / total * 100))
-            pass
+    map_task_parallel(step1, filenames)
 else:
-    for _, i in zip(map(step1, filenames), range(1, total+1)):
-        pass
-    #print('%d out of %d, %.2f%%' % (i, total, i / total * 100))
-#print('Saving...')
-#save_as_one_file(ppEmails)
+    map_task_parallel(step1, filenames)
+"""
 
+
+"""
+print('Doing step 2...')
+wordLists = map_task_single(step2_file, ppFilenames)
+
+print('Saving file...')
+sortedTuples = sorted(dictionary.items(), key=lambda i: i[1], reverse=True)
+save_file((
+    '\n'.join(map(lambda i: i[0], sortedTuples[:lenDict])),
+    'dictionary.txt'
+    ))
+
+"""
+
+trainCsv = open('dataset-training.csv', 'w')
+print('Doing step 3 alone...')
+dictionaryList = read_dictionary()
+dictionary = OrderedDict.fromkeys(dictionaryList, 0)
+chunk = 100
+vals = []
+for val, i in zip(map(step3_file, ppFilenames), range(1, len(ppFilenames)+1)):
+    vals.append(val)
+    if i % 10 == 0:
+        print(i, "out of", len(ppFilenames))
+    if i % chunk == 0:
+        print("writing")
+        trainCsv.write('\n'.join(vals)+'\n')
+        vals = []
+
+trainCsv.write('\n'.join(vals)+'\n')
