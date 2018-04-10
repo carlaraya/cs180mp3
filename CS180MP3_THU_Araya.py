@@ -2,11 +2,13 @@ from collections import defaultdict, OrderedDict
 from mp3helpers import *
 from time import time
 import copy
+import numpy as np
 
-parallel = False
-lenDict = 50000
+lenDict = 40000
 
 ppFilenames = list(map(pp_filename, filenameNos))#[:1000]
+testFilenames = ppFilenames[10000:70335:2]
+trainFilenames = [i for i in ppFilenames if i not in testFilenames]
 dictionary = defaultdict(int)
 
 def map_task_multi(func, List):
@@ -52,32 +54,39 @@ def step3_file(filename):
     return step3(fileWords)
 
 def step3(fileWords):
-    cp1 = time()
+    #cp1 = time()
     fileDict = OrderedDict.fromkeys(dictionaryList, 0)
-    cp2 = time()
+    #cp2 = time()
     for word in fileWords:
         if word in fileDict:
             fileDict[word] += 1
-    cp3 = time()
+    #cp3 = time()
     #trainCsv.write(','.join(map(str, fileDict.values())) + '\n')
-    print(cp2-cp1, cp3-cp2)
+    #print(cp2-cp1, cp3-cp2)
     return ','.join(map(str, fileDict.values()))
 
+def step3_all(fnList, datasetFn):
+    Csv = open(datasetFn, 'w')
+    chunk = 100
+    vals = []
+    for val, i in zip(map(step3_file, fnList), range(1, len(fnList)+1)):
+        vals.append(val)
+        if i % 10 == 0:
+            print(i, "out of", len(fnList))
+        if i % chunk == 0:
+            print("writing")
+            Csv.write('\n'.join(vals)+'\n')
+            vals = []
+    Csv.write('\n'.join(vals)+'\n')
 
 total=len(filenames)
-print(str(total), 'filez')
+print(str(total), 'files')
 
 """
 print('Doing step 1...')
+#map_task_multi(step1, filenames)
+map_task_single(step1, filenames)
 
-if parallel:
-    map_task_parallel(step1, filenames)
-else:
-    map_task_parallel(step1, filenames)
-"""
-
-
-"""
 print('Doing step 2...')
 wordLists = map_task_single(step2_file, ppFilenames)
 
@@ -90,19 +99,7 @@ save_file((
 
 """
 
-trainCsv = open('dataset-training.csv', 'w')
 print('Doing step 3 alone...')
 dictionaryList = read_dictionary()
-dictionary = OrderedDict.fromkeys(dictionaryList, 0)
-chunk = 100
-vals = []
-for val, i in zip(map(step3_file, ppFilenames), range(1, len(ppFilenames)+1)):
-    vals.append(val)
-    if i % 10 == 0:
-        print(i, "out of", len(ppFilenames))
-    if i % chunk == 0:
-        print("writing")
-        trainCsv.write('\n'.join(vals)+'\n')
-        vals = []
-
-trainCsv.write('\n'.join(vals)+'\n')
+step3_all(trainFilenames, 'dataset-training.csv')
+step3_all(testFilenames, 'dataset-test.csv')
