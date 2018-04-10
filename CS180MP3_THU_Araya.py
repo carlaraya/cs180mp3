@@ -5,10 +5,11 @@ import copy
 import numpy as np
 
 lenDict = 40000
+steps = [4]
 
 ppFilenames = list(map(pp_filename, filenameNos))#[:1000]
 testFilenames = ppFilenames[10000:70335:2]
-trainFilenames = [i for i in ppFilenames if i not in testFilenames]
+trainFilenames = list(set(ppFilenames) - set(testFilenames))
 dictionary = defaultdict(int)
 
 def map_task_multi(func, List):
@@ -79,27 +80,49 @@ def step3_all(fnList, datasetFn):
             vals = []
     Csv.write('\n'.join(vals)+'\n')
 
+def step4():
+    chunk = 10
+    trainCsv = open('dataset-training.csv', 'r')
+    model = BernoulliNb()
+    ct = 0
+    X = np.zeros((chunk, lenDict))
+    for line in trainCsv:
+        stuffs = line.split(',')
+        print(len(stuffs))
+        X[ct] = map(int, stuffs)
+
+        ct += 1
+        if ct == chunk:
+            break
+    print(X)
+
+
 total=len(filenames)
 print(str(total), 'files')
 
-"""
-print('Doing step 1...')
-#map_task_multi(step1, filenames)
-map_task_single(step1, filenames)
+if 1 in steps:
+    print('Doing step 1...')
+    #map_task_multi(step1, filenames)
+    map_task_single(step1, filenames)
 
-print('Doing step 2...')
-wordLists = map_task_single(step2_file, ppFilenames)
+if 2 in steps:
+    print('Doing step 2...')
+    wordLists = map_task_single(step2_file, ppFilenames)
 
-print('Saving file...')
-sortedTuples = sorted(dictionary.items(), key=lambda i: i[1], reverse=True)
-save_file((
-    '\n'.join(map(lambda i: i[0], sortedTuples[:lenDict])),
-    'dictionary.txt'
-    ))
+    print('Saving file...')
+    sortedTuples = sorted(dictionary.items(), key=lambda i: i[1], reverse=True)
+    save_file((
+        '\n'.join(map(lambda i: i[0], sortedTuples[:lenDict])),
+        'dictionary.txt'
+        ))
 
-"""
+if 3 in steps:
+    print('Doing step 3 alone...')
+    dictionaryList = read_dictionary()
+    step3_all(trainFilenames, 'dataset-training.csv')
+    step3_all(testFilenames, 'dataset-test.csv')
 
-print('Doing step 3 alone...')
-dictionaryList = read_dictionary()
-step3_all(trainFilenames, 'dataset-training.csv')
-step3_all(testFilenames, 'dataset-test.csv')
+if 4 in steps:
+    print('Doing step 4...')
+    step4()
+
