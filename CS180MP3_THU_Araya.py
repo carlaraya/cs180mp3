@@ -1,13 +1,18 @@
-from collections import defaultdict, OrderedDict
+print("Importing helpers...")
 from mp3helpers import *
+print("Importing other stuff...")
+from collections import defaultdict, OrderedDict
 from time import time
 import copy
 import numpy as np
+from sklearn.naive_bayes import BernoulliNB, MultinomialNB
+import sys
+print("Done importing...")
 
-lenDict = 40000
-steps = [4]
+lenDict = 50000
+steps = sys.argv[1:]
 
-ppFilenames = list(map(pp_filename, filenameNos))#[:1000]
+ppFilenames = list(map(pp_filename, filenameNos))
 testFilenames = ppFilenames[10000:70335:2]
 trainFilenames = list(set(ppFilenames) - set(testFilenames))
 dictionary = defaultdict(int)
@@ -52,7 +57,11 @@ def read_dictionary():
 
 def step3_file(filename):
     fileWords = read_file(filename).split(' ')
-    return step3(fileWords)
+    freqs = step3(fileWords)
+    if is_spam(filename) == 'spam':
+        return freqs+',1'
+    else:
+        return freqs+',0'
 
 def step3(fileWords):
     #cp1 = time()
@@ -72,40 +81,50 @@ def step3_all(fnList, datasetFn):
     vals = []
     for val, i in zip(map(step3_file, fnList), range(1, len(fnList)+1)):
         vals.append(val)
-        if i % 10 == 0:
+        if i % 200 == 0:
             print(i, "out of", len(fnList))
         if i % chunk == 0:
-            print("writing")
+            #print("writing")
             Csv.write('\n'.join(vals)+'\n')
             vals = []
-    Csv.write('\n'.join(vals)+'\n')
+    Csv.write('\n'.join(vals))
 
 def step4():
-    chunk = 10
-    trainCsv = open('dataset-training.csv', 'r')
-    model = BernoulliNb()
-    ct = 0
+    chunk = 1000
+    trainCsv = open('dataset-train.csv', 'r')
+    model = BernoulliNB()
     X = np.zeros((chunk, lenDict))
-    for line in trainCsv:
-        stuffs = line.split(',')
-        print(len(stuffs))
-        X[ct] = map(int, stuffs)
-
-        ct += 1
-        if ct == chunk:
+    isDone = False
+    while not isDone:
+        ct = 0
+        Y = []
+        for line in trainCsv:
+            vector = [int(i) for i in line.split(',')]
+            X[ct] = vector[:-1]
+            Y.append(vector[-1])
+            ct += 1
+            if ct == chunk:
+                break
+        if ct == 0:
             break
-    print(X)
+        if ct != chunk:
+            X = np.resize(X, (ct, lenDict))
+            isDone = True
+        model.partial_fit(X, Y, classes=[0,1])
+
+    Y2 = model.predict(X)
+    print(np.sum(np.array(Y) == Y2))
 
 
 total=len(filenames)
 print(str(total), 'files')
 
-if 1 in steps:
+if '1' in steps:
     print('Doing step 1...')
     #map_task_multi(step1, filenames)
     map_task_single(step1, filenames)
 
-if 2 in steps:
+if '2' in steps:
     print('Doing step 2...')
     wordLists = map_task_single(step2_file, ppFilenames)
 
@@ -116,13 +135,13 @@ if 2 in steps:
         'dictionary.txt'
         ))
 
-if 3 in steps:
-    print('Doing step 3 alone...')
+if '3' in steps:
+    print('Doing step 3...')
     dictionaryList = read_dictionary()
     step3_all(trainFilenames, 'dataset-training.csv')
     step3_all(testFilenames, 'dataset-test.csv')
 
-if 4 in steps:
+if '4' in steps:
     print('Doing step 4...')
     step4()
 
