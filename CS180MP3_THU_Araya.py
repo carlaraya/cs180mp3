@@ -16,8 +16,8 @@ steps = sys.argv[1:]
 smooth=1
 for arg in steps:
     if arg.startswith('smooth'):
+        smooth = float(arg.split('=')[-1])
         break
-smooth = float(arg.split('=')[-1])
 print(smooth)
 
 if 'stop' in steps: isstop = True
