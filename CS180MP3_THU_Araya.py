@@ -9,6 +9,7 @@ from sklearn.naive_bayes import BernoulliNB, MultinomialNB
 import sys
 print("Done importing...")
 
+chunk = 1000
 lenDict = 50000
 steps = sys.argv[1:]
 
@@ -97,14 +98,46 @@ def step3_all(fnList, datasetFn):
             vals = []
     Csv.write('\n'.join(vals))
 
+def test_on_csv(model, csvfile):
+    X = np.zeros((chunk, lenDict))
+    testCsv = open(csvfile, 'r')
+    isDone = False
+    Y = []
+    P = []
+    COUNT = 0
+    while not isDone:
+        ct = 0
+        for line in testCsv:
+            vector = [int(i) for i in line.split(',')]
+            X[ct] = vector[:-1]
+            Y.append(vector[-1])
+            ct += 1
+            if ct == chunk:
+                break
+        if ct == 0:
+            break
+        if ct != chunk:
+            X = np.resize(X, (ct, lenDict))
+            isDone = True
+        P += list(model.predict(X))
+        COUNT += ct
+        print(COUNT)
+    correct = np.sum(np.array(Y) == np.array(P))
+    print('%d out of %d. %s%%' % (correct, COUNT, str(correct / COUNT * 100)))
+    
+
 def step4():
     print('Training...')
-    progress = 0
-    chunk = 14
     trainCsv = open('dataset-train.csv', 'r')
-    model = BernoulliNB()
     X = np.zeros((chunk, lenDict))
+    if 'ber' in steps:
+        model = BernoulliNB()
+    elif 'mul' in steps:
+        model = MultinomialNB()
+    else:
+        model = MultinomialNB()
     isDone = False
+    COUNT = 0
     while not isDone:
         ct = 0
         Y = []
@@ -121,31 +154,13 @@ def step4():
             X = np.resize(X, (ct, lenDict))
             isDone = True
         model.partial_fit(X, Y, classes=[0,1])
+        COUNT += ct
+        print(COUNT)
 
-    print('Testing...')
-    testCsv = open('dataset-test.csv', 'r')
-    isDone = False
-    X = np.zeros((chunk, lenDict))
-    Y = []
-    P = []
-    while not isDone:
-        ct = 0
-        for line in testCsv:
-            vector = [int(i) for i in line.split(',')]
-            print(X.shape)
-            X[ct] = vector[:-1]
-            Y.append(vector[-1])
-            ct += 1
-            if ct == chunk:
-                break
-        if ct == 0:
-            break
-        if ct != chunk:
-            X = np.resize(X, (ct, lenDict))
-            isDone = True
-        P += list(model.predict(X))
-    correct = np.sum(np.array(Y) == np.array(P))
-    print('%d out of %d. %s%%' % (correct, lenTest, str(correct / lenTest * 100)))
+    print('Testing on training set...')
+    test_on_csv(model, 'dataset-train.csv')
+    print('Testing on test set...')
+    test_on_csv(model, 'dataset-test.csv')
 
 total=len(filenames)
 print(str(total), 'files')
