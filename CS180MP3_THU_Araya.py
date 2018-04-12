@@ -13,12 +13,20 @@ chunk = 1000
 lenDict = 50000
 steps = sys.argv[1:]
 
+smooth=1
+for arg in steps:
+    if arg.startswith('smooth'):
+        break
+smooth = float(arg.split('=')[-1])
+print(smooth)
+
 if 'stop' in steps: isstop = True
 else: isstop = False
 if 'stem' in steps: isstem = True
 else: isstem = False
 print('STOP IS', isstop)
 print('STEM IS', isstem)
+
 
 ppFilenames = list(map(pp_filename, filenameNos))
 testFilenames = ppFilenames[10000:70335:2]
@@ -131,11 +139,11 @@ def step4():
     trainCsv = open('dataset-train.csv', 'r')
     X = np.zeros((chunk, lenDict))
     if 'ber' in steps:
-        model = BernoulliNB()
+        model = BernoulliNB(alpha=smooth)
     elif 'mul' in steps:
-        model = MultinomialNB()
+        model = MultinomialNB(alpha=smooth)
     else:
-        model = MultinomialNB()
+        model = MultinomialNB(alpha=smooth)
     isDone = False
     COUNT = 0
     while not isDone:
