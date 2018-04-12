@@ -1,4 +1,5 @@
 import random
+from mp3helpers import *
 def game():
     total = 0
     correct = 0
@@ -18,3 +19,5 @@ def game():
         if asdf != 'y':
             break
     print('You made', correct, 'correct choices out of', total, 'total choices, so', correct / total * 100, '% is your accuracy. Congratulations!')
+
+game()

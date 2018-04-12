@@ -5,16 +5,17 @@ from os import mkdir, path
 import nltk
 import random
 import re
-try:
-    from random_shit import *
-except ImportError:
-    pass
+from nltk.corpus import stopwords
+from nltk.stem.porter import *
 
 def get_id(filename):
     return filename.split('.')[-1]
 
 def get_int_id(filename):
     return int(get_id(filename))
+
+stopset = set(stopwords.words('english'))
+stemmer = PorterStemmer()
 
 """
 list of filenames
@@ -156,7 +157,7 @@ makedir('preprocess')
 def pp_filename(filename):
     return 'preprocess/inmail.' + filename.split('.')[-1]
 
-def preprocess(text):
+def preprocess(text, stop=False, stem=False):
     def email_obj_is_text(emailObj):
         return emailObj.get_content_type() == 'text/plain' or emailObj.get_content_type() == 'text/html'
 
@@ -187,6 +188,12 @@ def preprocess(text):
         tokens = filter(tp.match, tokens)
     for tn in tokenNegatives:
         tokens = filter(lambda tok: not tn.match(tok), tokens)
+
+    if stop:
+        tokens = set(tokens) - stopset
+    if stem:
+        tokens = [stemmer.stem(token) for token in tokens]
     body = ' '.join(tokens)
     #body = '=================OLD:\n' + text + '==================NEW:\n' + body
     return body
+
